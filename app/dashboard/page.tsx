@@ -23,8 +23,8 @@ const tierNames: { [key: number]: string } = {
 
 const tierLimits: { [key: number]: { emails: number | string; ai: number } } = {
   1: { emails: 50, ai: 50 },
-  2: { emails: 50, ai: 200 },
-  3: { emails: 50, ai: 500 },
+  2: { emails: 100, ai: 200 },
+  3: { emails: 200, ai: 500 },
   4: { emails: "Unlimited", ai: 1000 },
 };
 
