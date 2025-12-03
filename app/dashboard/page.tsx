@@ -12,6 +12,7 @@ interface AppSumoLicense {
   tier?: number;
   status?: string;
   linkedAt?: any;
+  userEmails?: string[];
 }
 
 const tierNames: { [key: number]: string } = {
@@ -33,6 +34,10 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [license, setLicense] = useState<AppSumoLicense | null>(null);
+  const [linkedEmails, setLinkedEmails] = useState<string[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [addingEmail, setAddingEmail] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -70,6 +75,7 @@ export default function DashboardPage() {
       console.log("License data:", response.data);
 
       setLicense(response.data);
+      setLinkedEmails(response.data.userEmails || []);
     } catch (error: any) {
       console.error("Error fetching license:", error);
 
@@ -88,6 +94,95 @@ export default function DashboardPage() {
       router.push("/");
     } catch (error) {
       console.error("Error logging out:", error);
+    }
+  };
+
+  const handleAddEmail = async () => {
+    setEmailError("");
+
+    // Validate email
+    if (!newEmail || !newEmail.includes("@")) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    // Check if email already exists
+    if (linkedEmails.includes(newEmail)) {
+      setEmailError("This email is already linked");
+      return;
+    }
+
+    // Check tier limits
+    const tier = license?.tier || 1;
+    const maxEmails = tier === 2 ? 3 : tier === 3 ? 9 : 0;
+
+    if (linkedEmails.length >= maxEmails) {
+      setEmailError(`You can only add up to ${maxEmails} emails for your tier`);
+      return;
+    }
+
+    setAddingEmail(true);
+
+    try {
+      const idToken = await user?.getIdToken();
+
+      await axios.post(
+        "https://appsumo-licensing-792902431116.us-central1.run.app/manualLinkAppSumoLicense",
+        {
+          licenseKey: license?.licenseKey,
+          userEmails: [...linkedEmails, newEmail]
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      setLinkedEmails([...linkedEmails, newEmail]);
+      setNewEmail("");
+      setEmailError("");
+    } catch (error: any) {
+      console.error("Error adding email:", error);
+      setEmailError(
+        error.response?.data?.message || "Failed to add email. Please try again."
+      );
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleRemoveEmail = async (emailToRemove: string) => {
+    setAddingEmail(true);
+    setEmailError("");
+
+    try {
+      const idToken = await user?.getIdToken();
+      const updatedEmails = linkedEmails.filter(email => email !== emailToRemove);
+
+      await axios.post(
+        "https://appsumo-licensing-792902431116.us-central1.run.app/manualLinkAppSumoLicense",
+        {
+          licenseKey: license?.licenseKey,
+          userEmails: updatedEmails
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      setLinkedEmails(updatedEmails);
+    } catch (error: any) {
+      console.error("Error removing email:", error);
+      setEmailError(
+        error.response?.data?.message || "Failed to remove email. Please try again."
+      );
+    } finally {
+      setAddingEmail(false);
     }
   };
 
@@ -234,6 +329,90 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Email Management Section */}
+        {license?.tier && license.tier > 1 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Manage Team Emails
+              </h3>
+              <p className="text-sm text-gray-600">
+                Add team member emails to share this license. Your tier allows up to{" "}
+                {license.tier === 2 ? "3" : license.tier === 3 ? "9" : "0"} emails.
+              </p>
+            </div>
+
+            {/* Linked Emails List */}
+            {linkedEmails.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                  Linked Emails ({linkedEmails.length}/{license.tier === 2 ? 3 : 9})
+                </h4>
+                <div className="space-y-2">
+                  {linkedEmails.map((email, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg"
+                    >
+                      <span className="text-sm text-gray-900">{email}</span>
+                      <button
+                        onClick={() => handleRemoveEmail(email)}
+                        disabled={addingEmail}
+                        className="text-red-600 hover:text-red-800 text-sm font-semibold disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Email Form */}
+            {linkedEmails.length < (license.tier === 2 ? 3 : 9) && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Add New Email
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !addingEmail) {
+                        handleAddEmail();
+                      }
+                    }}
+                    placeholder="email@example.com"
+                    disabled={addingEmail}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
+                  />
+                  <button
+                    onClick={handleAddEmail}
+                    disabled={addingEmail || !newEmail}
+                    className="bg-primary text-white px-6 py-2 rounded-lg font-semibold hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {addingEmail ? "Adding..." : "Add"}
+                  </button>
+                </div>
+                {emailError && (
+                  <p className="mt-2 text-sm text-red-600">{emailError}</p>
+                )}
+              </div>
+            )}
+
+            {linkedEmails.length >= (license.tier === 2 ? 3 : 9) && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  You've reached the maximum number of emails for your tier.
+                  {license.tier === 2 && " Upgrade to Pro to add up to 9 emails."}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Quick Stats */}
         {/* <div className="grid md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm p-6">
@@ -289,7 +468,7 @@ export default function DashboardPage() {
                   in Gmail.
                 </p>
                 <a
-                  href="https://chromewebstore.google.com/detail/automagical-nudge/dcedcbkogfnegennlbahojfpodapjbkle"
+                  href="https://chromewebstore.google.com/detail/dcedcbkogfnegennlbahojfpodapjbkl?utm_source=item-share-cb"
                   target="_blank"
                   className="text-primary font-semibold text-sm hover:underline"
                 >
