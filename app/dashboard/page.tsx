@@ -97,11 +97,16 @@ export default function DashboardPage() {
     }
   };
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/;
+    return email && emailRegex.test(email.trim());
+  };
+
   const handleAddEmail = async () => {
     setEmailError("");
 
     // Validate email
-    if (!newEmail || !newEmail.includes("@")) {
+    if (!validateEmail(newEmail)) {
       setEmailError("Please enter a valid email address");
       return;
     }
