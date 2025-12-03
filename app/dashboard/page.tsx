@@ -12,6 +12,7 @@ interface AppSumoLicense {
   tier?: number;
   status?: string;
   linkedAt?: any;
+  userEmail?: string;
   userEmails?: string[];
 }
 
@@ -108,6 +109,12 @@ export default function DashboardPage() {
     // Validate email
     if (!validateEmail(newEmail)) {
       setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    // Check if user is trying to add their own email
+    if (newEmail.toLowerCase().trim() === user?.email?.toLowerCase()) {
+      setEmailError("You cannot add your own email");
       return;
     }
 
@@ -335,7 +342,7 @@ export default function DashboardPage() {
         )}
 
         {/* Email Management Section */}
-        {license?.tier && license.tier > 1 && (
+        {license?.tier && license.tier > 1 && user?.email?.toLowerCase() === license?.userEmail?.toLowerCase() && (
           <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
             <div className="mb-4">
               <h3 className="text-xl font-bold text-gray-900 mb-2">
